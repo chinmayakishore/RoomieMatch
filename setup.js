@@ -1,0 +1,366 @@
+const fs = require('fs');
+const path = require('path');
+
+const files = {
+  'App.js': `import { StatusBar } from 'expo-status-bar';
+import TabNavigator from './src/navigation/TabNavigator';
+
+export default function App() {
+  return (
+    <>
+      <StatusBar style="dark" />
+      <TabNavigator />
+    </>
+  );
+}
+`,
+
+  'src/data/profiles.js': `export const profiles = [
+  { id: '1', name: 'Jordan Lee', age: 26, role: 'Software Engineer', location: 'Cambridge, MA', budget: '$1,400-$1,800/mo', emoji: '👩', color: '#E1F5EE', tags: ['Night owl', 'Pet-friendly', 'Clean'], bio: 'Work remote, love having friends over on weekends. Looking for someone easy-going.', moveIn: 'June 2026', lifestyle: 'Night owl', smoking: 'Non-smoker', pets: 'Has a cat' },
+  { id: '2', name: 'Marcus T.', age: 29, role: 'Nurse - BU Medical', location: 'Allston, MA', budget: '$1,000-$1,400/mo', emoji: '🧔', color: '#E6F1FB', tags: ['Early bird', 'Non-smoker', 'Quiet'], bio: 'Work night shifts so quiet hours at home are important. Super tidy.', moveIn: 'July 2026', lifestyle: 'Early bird', smoking: 'Non-smoker', pets: 'No pets' },
+  { id: '3', name: 'Priya S.', age: 24, role: 'UX Designer', location: 'Somerville, MA', budget: '$1,200-$1,600/mo', emoji: '👩‍💻', color: '#FBEAF0', tags: ['Flexible', 'Cat owner', 'Foodie'], bio: 'Love cooking, always have music on. Looking for someone social but respectful of space.', moveIn: 'June 2026', lifestyle: 'Flexible', smoking: 'Non-smoker', pets: 'Has a cat' },
+  { id: '4', name: 'Sam O.', age: 27, role: 'PhD Candidate - MIT', location: 'East Cambridge', budget: '$1,100-$1,500/mo', emoji: '🧑‍🔬', color: '#EAF3DE', tags: ['Studious', 'Tidy', 'No pets'], bio: 'Deep in thesis mode. Need a calm home base but enjoy casual hangouts on weekends.', moveIn: 'August 2026', lifestyle: 'Early bird', smoking: 'Non-smoker', pets: 'No pets' },
+  { id: '5', name: 'Riley M.', age: 25, role: 'Graphic Designer', location: 'JP, Boston', budget: '$1,300-$1,700/mo', emoji: '🎨', color: '#FAEEDA', tags: ['Creative', 'Night owl', 'Clean'], bio: 'Freelance designer working from home. Love plants, art, and a clean shared space.', moveIn: 'June 2026', lifestyle: 'Night owl', smoking: 'Non-smoker', pets: 'No pets' },
+];
+`,
+
+  'src/components/ProfileCard.js': `import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+
+export default function ProfileCard({ profile }) {
+  return (
+    <View style={styles.card}>
+      <View style={[styles.avatarBox, { backgroundColor: profile.color }]}>
+        <Text style={styles.avatarEmoji}>{profile.emoji}</Text>
+      </View>
+      <View style={styles.body}>
+        <Text style={styles.name}>{profile.name}, {profile.age}</Text>
+        <Text style={styles.sub}>{profile.role}</Text>
+        <Text style={styles.sub}>📍 {profile.location}</Text>
+        <Text style={styles.budget}>💰 {profile.budget}</Text>
+        <View style={styles.tags}>
+          {profile.tags.map((tag) => (
+            <View key={tag} style={styles.tag}>
+              <Text style={styles.tagText}>{tag}</Text>
+            </View>
+          ))}
+        </View>
+        <Text style={styles.bio}>{profile.bio}</Text>
+        <View style={styles.details}>
+          {[['Move-in', profile.moveIn], ['Lifestyle', profile.lifestyle], ['Smoking', profile.smoking], ['Pets', profile.pets]].map(([label, value]) => (
+            <View key={label} style={styles.detailRow}>
+              <Text style={styles.detailLabel}>{label}</Text>
+              <Text style={styles.detailValue}>{value}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: { backgroundColor: '#fff', borderRadius: 20, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
+  avatarBox: { height: 180, alignItems: 'center', justifyContent: 'center' },
+  avatarEmoji: { fontSize: 72 },
+  body: { padding: 18 },
+  name: { fontSize: 22, fontWeight: '600', color: '#1a1a1a' },
+  sub: { fontSize: 14, color: '#666', marginTop: 3 },
+  budget: { fontSize: 14, color: '#444', marginTop: 6, fontWeight: '500' },
+  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 12 },
+  tag: { backgroundColor: '#f0eefe', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  tagText: { fontSize: 12, color: '#534AB7', fontWeight: '500' },
+  bio: { fontSize: 14, color: '#555', lineHeight: 21, marginTop: 12 },
+  details: { marginTop: 14, borderTopWidth: 0.5, borderTopColor: '#e5e5e5', paddingTop: 12, gap: 8 },
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  detailLabel: { fontSize: 13, color: '#888' },
+  detailValue: { fontSize: 13, color: '#333', fontWeight: '500' },
+});
+`,
+
+  'src/screens/DiscoverScreen.js': `import React, { useState, useRef } from 'react';
+import { View, Text, StyleSheet, Animated, PanResponder, TouchableOpacity, Dimensions } from 'react-native';
+import ProfileCard from '../components/ProfileCard';
+import { profiles } from '../data/profiles';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
+
+export default function DiscoverScreen({ onMatch }) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const position = useRef(new Animated.ValueXY()).current;
+
+  const panResponder = PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onPanResponderMove: (_, gesture) => { position.setValue({ x: gesture.dx, y: gesture.dy }); },
+    onPanResponderRelease: (_, gesture) => {
+      if (gesture.dx > SWIPE_THRESHOLD) swipeRight();
+      else if (gesture.dx < -SWIPE_THRESHOLD) swipeLeft();
+      else Animated.spring(position, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
+    },
+  });
+
+  const swipeRight = () => {
+    Animated.timing(position, { toValue: { x: SCREEN_WIDTH * 1.5, y: 0 }, duration: 300, useNativeDriver: false }).start(() => {
+      onMatch(profiles[currentIndex]);
+      nextCard();
+    });
+  };
+
+  const swipeLeft = () => {
+    Animated.timing(position, { toValue: { x: -SCREEN_WIDTH * 1.5, y: 0 }, duration: 300, useNativeDriver: false }).start(() => nextCard());
+  };
+
+  const nextCard = () => { position.setValue({ x: 0, y: 0 }); setCurrentIndex(i => i + 1); };
+
+  const rotate = position.x.interpolate({ inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2], outputRange: ['-10deg', '0deg', '10deg'], extrapolate: 'clamp' });
+  const likeOpacity = position.x.interpolate({ inputRange: [0, SWIPE_THRESHOLD], outputRange: [0, 1], extrapolate: 'clamp' });
+  const nopeOpacity = position.x.interpolate({ inputRange: [-SWIPE_THRESHOLD, 0], outputRange: [1, 0], extrapolate: 'clamp' });
+
+  if (currentIndex >= profiles.length) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyEmoji}>✓</Text>
+        <Text style={styles.emptyTitle}>You've seen everyone!</Text>
+        <Text style={styles.emptySub}>Check your matches tab</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.header}>RoomieMatch</Text>
+      <View style={styles.cardContainer}>
+        {currentIndex + 1 < profiles.length && (
+          <View style={[styles.cardWrapper, styles.backCard]}>
+            <ProfileCard profile={profiles[currentIndex + 1]} />
+          </View>
+        )}
+        <Animated.View style={[styles.cardWrapper, { transform: [{ translateX: position.x }, { translateY: position.y }, { rotate }] }]} {...panResponder.panHandlers}>
+          <Animated.View style={[styles.stamp, styles.likeStamp, { opacity: likeOpacity }]}><Text style={styles.likeText}>LIKE</Text></Animated.View>
+          <Animated.View style={[styles.stamp, styles.nopeStamp, { opacity: nopeOpacity }]}><Text style={styles.nopeText}>NOPE</Text></Animated.View>
+          <ProfileCard profile={profiles[currentIndex]} />
+        </Animated.View>
+      </View>
+      <View style={styles.actions}>
+        <TouchableOpacity style={[styles.btn, styles.passBtn]} onPress={swipeLeft}><Text style={styles.passBtnText}>✕</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btn, styles.likeBtn]} onPress={swipeRight}><Text style={styles.likeBtnText}>♥</Text></TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#f8f7ff' },
+  header: { fontSize: 22, fontWeight: '700', color: '#534AB7', textAlign: 'center', paddingTop: 56, paddingBottom: 12 },
+  cardContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
+  cardWrapper: { position: 'absolute', width: '100%' },
+  backCard: { transform: [{ scale: 0.95 }, { translateY: 12 }] },
+  stamp: { position: 'absolute', top: 24, zIndex: 10, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8, borderWidth: 3 },
+  likeStamp: { left: 20, borderColor: '#1D9E75', backgroundColor: 'rgba(29,158,117,0.1)' },
+  likeText: { fontSize: 22, fontWeight: '800', color: '#1D9E75', letterSpacing: 2 },
+  nopeStamp: { right: 20, borderColor: '#E24B4A', backgroundColor: 'rgba(226,75,74,0.1)' },
+  nopeText: { fontSize: 22, fontWeight: '800', color: '#E24B4A', letterSpacing: 2 },
+  actions: { flexDirection: 'row', justifyContent: 'center', gap: 24, paddingVertical: 20, paddingBottom: 32 },
+  btn: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 6, elevation: 3 },
+  passBtn: { backgroundColor: '#fff', borderWidth: 0.5, borderColor: '#ddd' },
+  passBtnText: { fontSize: 24, color: '#E24B4A' },
+  likeBtn: { backgroundColor: '#f0eefe', borderWidth: 0.5, borderColor: '#AFA9EC' },
+  likeBtnText: { fontSize: 24, color: '#534AB7' },
+  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8f7ff', gap: 10 },
+  emptyEmoji: { fontSize: 48 },
+  emptyTitle: { fontSize: 20, fontWeight: '600', color: '#1a1a1a' },
+  emptySub: { fontSize: 14, color: '#888' },
+});
+`,
+
+  'src/screens/MatchesScreen.js': `import React from 'react';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
+
+export default function MatchesScreen({ matches }) {
+  if (matches.length === 0) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyEmoji}>💬</Text>
+        <Text style={styles.emptyTitle}>No matches yet</Text>
+        <Text style={styles.emptySub}>Start swiping to find your roommate</Text>
+      </View>
+    );
+  }
+  return (
+    <View style={styles.container}>
+      <Text style={styles.header}>Matches</Text>
+      <FlatList data={matches} keyExtractor={(item) => item.id} contentContainerStyle={styles.list}
+        renderItem={({ item }) => (
+          <TouchableOpacity style={styles.matchItem} activeOpacity={0.7}>
+            <View style={[styles.avatar, { backgroundColor: item.color }]}>
+              <Text style={styles.avatarEmoji}>{item.emoji}</Text>
+            </View>
+            <View style={styles.info}>
+              <View style={styles.nameRow}>
+                <Text style={styles.name}>{item.name}</Text>
+                <View style={styles.badge}><Text style={styles.badgeText}>New match</Text></View>
+              </View>
+              <Text style={styles.sub}>{item.role}</Text>
+              <Text style={styles.sub}>📍 {item.location} · {item.budget}</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#f8f7ff' },
+  header: { fontSize: 22, fontWeight: '700', color: '#534AB7', paddingTop: 56, paddingBottom: 16, paddingHorizontal: 20 },
+  list: { paddingHorizontal: 16, gap: 10 },
+  matchItem: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 16, padding: 14, alignItems: 'center', gap: 14, borderWidth: 0.5, borderColor: '#e8e8e8' },
+  avatar: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
+  avatarEmoji: { fontSize: 26 },
+  info: { flex: 1, gap: 3 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  name: { fontSize: 16, fontWeight: '600', color: '#1a1a1a' },
+  badge: { backgroundColor: '#EEEDFE', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  badgeText: { fontSize: 11, color: '#534AB7', fontWeight: '500' },
+  sub: { fontSize: 13, color: '#666' },
+  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8f7ff', gap: 10 },
+  emptyEmoji: { fontSize: 48 },
+  emptyTitle: { fontSize: 20, fontWeight: '600', color: '#1a1a1a' },
+  emptySub: { fontSize: 14, color: '#888' },
+});
+`,
+
+  'src/screens/ProfileScreen.js': `import React from 'react';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
+
+export default function ProfileScreen() {
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <Text style={styles.header}>My Profile</Text>
+      <View style={styles.avatarSection}>
+        <View style={styles.avatar}><Text style={styles.avatarEmoji}>🧑</Text></View>
+        <Text style={styles.name}>Alex Kim</Text>
+        <Text style={styles.sub}>Boston, MA · Graduate Student</Text>
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>MY PREFERENCES</Text>
+        {[['Budget','$1,200-$1,600/mo'],['Move-in','June 2026'],['Lifestyle','Early bird'],['Pets','No preference'],['Smoking','Non-smoker']].map(([label, value], i, arr) => (
+          <View key={label} style={[styles.prefRow, i === arr.length - 1 && { borderBottomWidth: 0 }]}>
+            <Text style={styles.prefLabel}>{label}</Text>
+            <Text style={styles.prefValue}>{value}</Text>
+          </View>
+        ))}
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>ABOUT ME</Text>
+        <Text style={styles.bio}>Grad student at BU. Quiet during the week, love cooking on weekends. Looking for a chill, clean roommate in the Boston area.</Text>
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>MY VIBE</Text>
+        <View style={styles.tags}>
+          {['Early bird','Clean','Quiet','Non-smoker','Homebody'].map(tag => (
+            <View key={tag} style={styles.tag}><Text style={styles.tagText}>{tag}</Text></View>
+          ))}
+        </View>
+      </View>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#f8f7ff' },
+  content: { paddingBottom: 40 },
+  header: { fontSize: 22, fontWeight: '700', color: '#534AB7', paddingTop: 56, paddingBottom: 20, paddingHorizontal: 20 },
+  avatarSection: { alignItems: 'center', marginBottom: 24, gap: 6 },
+  avatar: { width: 90, height: 90, borderRadius: 45, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  avatarEmoji: { fontSize: 46 },
+  name: { fontSize: 22, fontWeight: '600', color: '#1a1a1a' },
+  sub: { fontSize: 14, color: '#888' },
+  section: { backgroundColor: '#fff', marginHorizontal: 16, marginBottom: 14, borderRadius: 16, padding: 16, borderWidth: 0.5, borderColor: '#e8e8e8' },
+  sectionTitle: { fontSize: 11, fontWeight: '600', color: '#999', letterSpacing: 0.8, marginBottom: 12 },
+  prefRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#f0f0f0' },
+  prefLabel: { fontSize: 14, color: '#555' },
+  prefValue: { fontSize: 14, fontWeight: '500', color: '#1a1a1a' },
+  bio: { fontSize: 14, color: '#555', lineHeight: 22 },
+  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  tag: { backgroundColor: '#f0eefe', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  tagText: { fontSize: 13, color: '#534AB7', fontWeight: '500' },
+});
+`,
+
+  'src/navigation/TabNavigator.js': `import React, { useState } from 'react';
+import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import DiscoverScreen from '../screens/DiscoverScreen';
+import MatchesScreen from '../screens/MatchesScreen';
+import ProfileScreen from '../screens/ProfileScreen';
+
+const TABS = [
+  { id: 'discover', label: 'Discover', icon: '◈' },
+  { id: 'matches', label: 'Matches', icon: '♥' },
+  { id: 'profile', label: 'Profile', icon: '◉' },
+];
+
+export default function TabNavigator() {
+  const [activeTab, setActiveTab] = useState('discover');
+  const [matches, setMatches] = useState([]);
+
+  const handleMatch = (profile) => {
+    setMatches(prev => prev.find(m => m.id === profile.id) ? prev : [profile, ...prev]);
+  };
+
+  const renderScreen = () => {
+    switch (activeTab) {
+      case 'discover': return <DiscoverScreen onMatch={handleMatch} />;
+      case 'matches': return <MatchesScreen matches={matches} />;
+      case 'profile': return <ProfileScreen />;
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.screenArea}>{renderScreen()}</View>
+      <View style={styles.tabBar}>
+        {TABS.map(tab => {
+          const isActive = activeTab === tab.id;
+          const showBadge = tab.id === 'matches' && matches.length > 0;
+          return (
+            <TouchableOpacity key={tab.id} style={styles.tab} onPress={() => setActiveTab(tab.id)} activeOpacity={0.7}>
+              <View style={styles.iconWrapper}>
+                <Text style={[styles.icon, isActive && styles.iconActive]}>{tab.icon}</Text>
+                {showBadge && <View style={styles.badge}><Text style={styles.badgeText}>{matches.length}</Text></View>}
+              </View>
+              <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>{tab.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#f8f7ff' },
+  screenArea: { flex: 1 },
+  tabBar: { flexDirection: 'row', backgroundColor: '#fff', borderTopWidth: 0.5, borderTopColor: '#e5e5e5', paddingBottom: 20 },
+  tab: { flex: 1, alignItems: 'center', paddingTop: 10, paddingBottom: 4, gap: 3 },
+  iconWrapper: { position: 'relative' },
+  icon: { fontSize: 20, color: '#aaa' },
+  iconActive: { color: '#534AB7' },
+  tabLabel: { fontSize: 11, color: '#aaa' },
+  tabLabelActive: { color: '#534AB7', fontWeight: '500' },
+  badge: { position: 'absolute', top: -4, right: -8, backgroundColor: '#534AB7', borderRadius: 8, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
+  badgeText: { fontSize: 10, color: '#fff', fontWeight: '600' },
+});
+`,
+};
+
+// Create directories and files
+for (const [filePath, content] of Object.entries(files)) {
+  const dir = path.dirname(filePath);
+  if (dir !== '.') fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(filePath, content, 'utf8');
+  console.log('Created: ' + filePath);
+}
+
+console.log('\nDone! Now run: npx expo start --tunnel');
